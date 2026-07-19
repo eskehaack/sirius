@@ -1,7 +1,6 @@
-cdsapi==0.7.7
-cfgrib==0.9.15.1 # ecCodes v2.47.1
-matplotlib==3.11.0
-xarray==2026.4.0
-cartopy==0.25.0
-zarr==3.2.1
+# Python 3.11.5
+torch torchvision --index-url https://download.pytorch.org/whl/cpu # torch==2.13.0+cpu torchvision==0.28.0+cpu
+lightning==2.6.5
 earthkit==1.0.0
+zarr==3.1.6
+

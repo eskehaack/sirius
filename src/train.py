@@ -5,8 +5,9 @@ import lightning.pytorch as pl
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from dataloader import PairedNpyDataModule
-from model import LitConditionalDDPM
+from src.data_builders.dataloader import PairedNpyDataModule
+from src.model import LitConditionalDDPM
+
 
 def train_ddpm(
     data_root: str = "./processed_carra2",
@@ -65,31 +66,48 @@ def train_ddpm(
 
     return model, trainer
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Train a DDPM model."
-    )
 
-    parser.add_argument("--data_root", type=str, default="./.data",
-                        help="Root directory containing the training data.")
-    parser.add_argument("--image_size", type=int, default=256,
-                        help="Input image size.")
-    parser.add_argument("--batch_size", type=int, default=16,
-                        help="Training batch size.")
-    parser.add_argument("--max_epochs", type=int, default=10,
-                        help="Number of training epochs.")
-    parser.add_argument("--lr", type=float, default=2e-4,
-                        help="Learning rate.")
-    parser.add_argument("--base_channels", type=int, default=128,
-                        help="Base number of channels in the U-Net.")
-    parser.add_argument("--timesteps", type=int, default=1000,
-                        help="Number of diffusion timesteps.")
-    parser.add_argument("--num_workers", type=int, default=16,
-                        help="Number of DataLoader workers.")
-    parser.add_argument("--target_channels", type=int, default=1,
-                        help="Number of channels in the target images.")
-    parser.add_argument("--condition_channels", type=int, default=1,
-                        help="Number of channels in the conditioning images.")
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train a DDPM model.")
+
+    parser.add_argument(
+        "--data_root",
+        type=str,
+        default="./.data",
+        help="Root directory containing the training data.",
+    )
+    parser.add_argument("--image_size", type=int, default=256, help="Input image size.")
+    parser.add_argument(
+        "--batch_size", type=int, default=16, help="Training batch size."
+    )
+    parser.add_argument(
+        "--max_epochs", type=int, default=10, help="Number of training epochs."
+    )
+    parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate.")
+    parser.add_argument(
+        "--base_channels",
+        type=int,
+        default=128,
+        help="Base number of channels in the U-Net.",
+    )
+    parser.add_argument(
+        "--timesteps", type=int, default=1000, help="Number of diffusion timesteps."
+    )
+    parser.add_argument(
+        "--num_workers", type=int, default=16, help="Number of DataLoader workers."
+    )
+    parser.add_argument(
+        "--target_channels",
+        type=int,
+        default=1,
+        help="Number of channels in the target images.",
+    )
+    parser.add_argument(
+        "--condition_channels",
+        type=int,
+        default=1,
+        help="Number of channels in the conditioning images.",
+    )
     parser.add_argument(
         "--checkpoint_dir",
         type=str,

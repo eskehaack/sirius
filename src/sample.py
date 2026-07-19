@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from model import LitConditionalDDPM
+from src.model import LitConditionalDDPM
 
 
 # ----------------------------------------------------
@@ -15,7 +15,10 @@ from model import LitConditionalDDPM
 
 DATA_DIR = "./.data/preprocessed"
 
-def main(timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample_dim: int = 0):
+
+def main(
+    timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample_dim: int = 0
+):
     # ----------------------------------------------------
     # Load model
     # ----------------------------------------------------
@@ -29,22 +32,20 @@ def main(timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample
 
     out_dir = Path(f"./samples/{timestamp}")
     if out_dir.exists():
-        out_dir = out_dir / time.strftime('%Y%m%d%H%M%S')
+        out_dir = out_dir / time.strftime("%Y%m%d%H%M%S")
     out_dir.mkdir(exist_ok=False, parents=True)
-
 
     # ----------------------------------------------------
     # Load conditioning image
     # ----------------------------------------------------
 
-    condition = np.load(
-        Path(DATA_DIR) / f"condition_{sample_index:05d}.npy"
-    ).astype(np.float32)
+    condition = np.load(Path(DATA_DIR) / f"condition_{sample_index:05d}.npy").astype(
+        np.float32
+    )
 
-    target = np.load(
-        Path(DATA_DIR) / f"target_{sample_index:05d}.npy"
-    ).astype(np.float32)
-
+    target = np.load(Path(DATA_DIR) / f"target_{sample_index:05d}.npy").astype(
+        np.float32
+    )
 
     # ----------------------------------------------------
     # IMPORTANT:
@@ -56,11 +57,7 @@ def main(timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample
 
     condition_norm = (condition - mean) / std
 
-    condition_tensor = (
-        torch.from_numpy(condition_norm)
-        .unsqueeze(0)
-        .to(device)
-    )
+    condition_tensor = torch.from_numpy(condition_norm).unsqueeze(0).to(device)
 
     # ----------------------------------------------------
     # Sample
@@ -69,7 +66,7 @@ def main(timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample
     with torch.no_grad():
         prediction = model.sample(
             condition_tensor,
-            num_steps=250,      # DDIM-like speedup
+            num_steps=250,  # DDIM-like speedup
         )
 
     prediction = prediction.squeeze().cpu().numpy()
@@ -77,13 +74,11 @@ def main(timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample
     # Undo normalization
     prediction = prediction * std + mean
 
-
     # ----------------------------------------------------
     # Save arrays
     # ----------------------------------------------------
 
     np.save(out_dir / "prediction.npy", prediction)
-
 
     # ----------------------------------------------------
     # Plot comparison
@@ -108,23 +103,29 @@ def main(timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Sample from a DDPM model."
+    parser = argparse.ArgumentParser(description="Sample from a DDPM model.")
+
+    parser.add_argument(
+        "--timestamp", type=str, help="Timestamp defining directory for checkpoint file"
     )
 
-    parser.add_argument("--timestamp", type=str,
-                        help="Timestamp defining directory for checkpoint file")
-    
-    parser.add_argument("--checkpoint", type=str, default="last",
-                        help="Name of checkpoint file")
-    
-    parser.add_argument("--sample_index", type=int, default=0,
-                        help="Index in dataset to sample from")
+    parser.add_argument(
+        "--checkpoint", type=str, default="last", help="Name of checkpoint file"
+    )
 
-    parser.add_argument("--sample_dim", type=int, default=0,
-                        help="What index of the sample image to show")
-    
+    parser.add_argument(
+        "--sample_index", type=int, default=0, help="Index in dataset to sample from"
+    )
+
+    parser.add_argument(
+        "--sample_dim",
+        type=int,
+        default=0,
+        help="What index of the sample image to show",
+    )
+
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
