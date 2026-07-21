@@ -1,9 +1,14 @@
 [training]
 batch_size = 4
-epochs = 10
-optimizer = "AdamW"
-learning_rate = 1E-4
-weight_decay = 1E-4
+max_epochs = 2
+lr = 1e-4
+base_channels = 64
+num_workers = 4
+target_channels = 1
+condition_channels = 23
+checkpoint_dir = "./checkpoints/"
+timesteps = 100
+channel_mults = [1, 2, 4, 8]
 
 [losses]
 

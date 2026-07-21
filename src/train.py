@@ -1,25 +1,29 @@
 import argparse
-import time
+from pathlib import Path
 
 import lightning.pytorch as pl
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from src.data_builders.dataloader import DataModule
+from src.data_builders.smhi_dataloader import parse_config
 from src.model import LitConditionalDDPM
 
 
-def train_ddpm(
-    batch_size: int = 8,
-    max_epochs: int = 1,
-    base_channels: int = 64,
-    lr: float = 2e-4,
-    timesteps: int = 100,
-    num_workers: int = 4,
-    checkpoint_dir: str = "./checkpoints",
-    target_channels: int = 3,
-    condition_channels: int = 3,
-):
+def train_ddpm(run_id: str, config_path: str = "./src/configs/training_config.toml"):
+
+    config: dict = parse_config("training", config_path)
+
+    batch_size = int(config["batch_size"])
+    max_epochs = int(config["max_epochs"])
+    lr = float(config["lr"])
+    base_channels = int(config["base_channels"])
+    num_workers = int(config["num_workers"])
+    target_channels = int(config["target_channels"])
+    condition_channels = int(config["condition_channels"])
+    checkpoint_dir = Path(config["checkpoint_dir"]) / str(run_id)
+    timesteps = int(config["timesteps"])
+    channel_mults = tuple(config["channel_mults"])
 
     datamodule = DataModule(
         batch_size=batch_size,
@@ -30,10 +34,12 @@ def train_ddpm(
         target_channels=target_channels,
         condition_channels=condition_channels,
         base_channels=base_channels,
-        channel_mults=(1, 2, 4, 8),
+        channel_mults=channel_mults,
         timesteps=timesteps,
-        lr=lr
+        lr=lr,
     )
+
+    model.save_hyperparameters(config)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=checkpoint_dir,
@@ -66,41 +72,17 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a DDPM model.")
 
     parser.add_argument(
-        "--batch_size", type=int, default=16, help="Training batch size."
+        "--config_path",
+        type=str,
+        default="./src/configs/training_config.toml",
+        help="Path to the training configuration file.",
     )
+
     parser.add_argument(
-        "--max_epochs", type=int, default=10, help="Number of training epochs."
-    )
-    parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate.")
-    parser.add_argument(
-        "--base_channels",
-        type=int,
-        default=128,
-        help="Base number of channels in the U-Net.",
-    )
-    parser.add_argument(
-        "--timesteps", type=int, default=1000, help="Number of diffusion timesteps."
-    )
-    parser.add_argument(
-        "--num_workers", type=int, default=16, help="Number of DataLoader workers."
-    )
-    parser.add_argument(
-        "--target_channels",
-        type=int,
-        default=1,
-        help="Number of channels in the target images.",
-    )
-    parser.add_argument(
-        "--condition_channels",
-        type=int,
-        default=1,
-        help="Number of channels in the conditioning images.",
-    )
-    parser.add_argument(
-        "--checkpoint_dir",
+        "--run_id",
         type=str,
         default=None,
-        help="Directory to save checkpoints. Defaults to ./checkpoints/<timestamp>.",
+        help="ID for the current training run.",
     )
 
     return parser.parse_args()
@@ -109,20 +91,4 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    checkpoint_dir = (
-        args.checkpoint_dir
-        if args.checkpoint_dir is not None
-        else f"./checkpoints/{time.strftime('%Y%m%d%H%M%S')}"
-    )
-
-    train_ddpm(
-        batch_size=args.batch_size,
-        max_epochs=args.max_epochs,
-        base_channels=args.base_channels,
-        lr=args.lr,
-        timesteps=args.timesteps,
-        num_workers=args.num_workers,
-        target_channels=args.target_channels,
-        condition_channels=args.condition_channels,
-        checkpoint_dir=checkpoint_dir,
-    )
+    train_ddpm(run_id=args.run_id, config_path=args.config_path)
