@@ -12,6 +12,7 @@ import lightning.pytorch as pl
 # Time embeddings
 # -------------------------
 
+
 class SinusoidalTimeEmbedding(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
@@ -34,6 +35,7 @@ class SinusoidalTimeEmbedding(nn.Module):
 # -------------------------
 # UNet blocks
 # -------------------------
+
 
 class ResBlock(nn.Module):
     def __init__(self, in_ch: int, out_ch: int, time_dim: int, dropout: float = 0.0):
@@ -73,7 +75,9 @@ class DownBlock(nn.Module):
 
 
 class UpBlock(nn.Module):
-    def __init__(self, in_ch: int, skip_ch: int, out_ch: int, time_dim: int, dropout: float):
+    def __init__(
+        self, in_ch: int, skip_ch: int, out_ch: int, time_dim: int, dropout: float
+    ):
         super().__init__()
         self.up = nn.ConvTranspose2d(in_ch, out_ch, 4, stride=2, padding=1)
         self.res1 = ResBlock(out_ch + skip_ch, out_ch, time_dim, dropout)
@@ -149,7 +153,9 @@ class ConditionalUNet(nn.Module):
             nn.Conv2d(chs[0], target_channels, 3, padding=1),
         )
 
-    def forward(self, x_t: torch.Tensor, condition: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x_t: torch.Tensor, condition: torch.Tensor, t: torch.Tensor
+    ) -> torch.Tensor:
         t_emb = self.time_mlp(t)
 
         x = torch.cat([x_t, condition], dim=1)
@@ -174,6 +180,7 @@ class ConditionalUNet(nn.Module):
 # Diffusion LightningModule
 # -------------------------
 
+
 class LitConditionalDDPM(pl.LightningModule):
     def __init__(
         self,
@@ -186,7 +193,7 @@ class LitConditionalDDPM(pl.LightningModule):
         beta_end: float = 2e-2,
         dropout: float = 0.0,
         lr: float = 2e-4,
-        image_size: int = 512
+        image_size: int = 512,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -211,11 +218,13 @@ class LitConditionalDDPM(pl.LightningModule):
         self.register_buffer("sqrt_alpha_bars", torch.sqrt(alpha_bars))
         self.register_buffer("sqrt_one_minus_alpha_bars", torch.sqrt(1.0 - alpha_bars))
 
-    def q_sample(self, x0: torch.Tensor, t: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
+    def q_sample(
+        self, x0: torch.Tensor, t: torch.Tensor, noise: torch.Tensor
+    ) -> torch.Tensor:
         sqrt_ab = self.sqrt_alpha_bars[t][:, None, None, None]
         sqrt_omab = self.sqrt_one_minus_alpha_bars[t][:, None, None, None]
         return sqrt_ab * x0 + sqrt_omab * noise
-    
+
     def _load_batch(self, batch):
         x, y, static, _ = batch
 
@@ -334,4 +343,8 @@ class LitConditionalDDPM(pl.LightningModule):
         return x.clamp(-1, 1)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=self.hparams.max_epochs, eta_min=1e-6
+        )
+        return [optimizer], [scheduler]
