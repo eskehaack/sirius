@@ -5,17 +5,15 @@ import lightning.pytorch as pl
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from src.data_builders.dataloader import PairedNpyDataModule
+from src.data_builders.dataloader import DataModule
 from src.model import LitConditionalDDPM
 
 
 def train_ddpm(
-    data_root: str = "./processed_carra2",
-    image_size: int = 256,
     batch_size: int = 8,
     max_epochs: int = 1,
-    lr: float = 2e-4,
     base_channels: int = 64,
+    lr: float = 2e-4,
     timesteps: int = 100,
     num_workers: int = 4,
     checkpoint_dir: str = "./checkpoints",
@@ -23,9 +21,7 @@ def train_ddpm(
     condition_channels: int = 3,
 ):
 
-    datamodule = PairedNpyDataModule(
-        root=data_root,
-        image_size=image_size,
+    datamodule = DataModule(
         batch_size=batch_size,
         num_workers=num_workers,
     )
@@ -33,11 +29,10 @@ def train_ddpm(
     model = LitConditionalDDPM(
         target_channels=target_channels,
         condition_channels=condition_channels,
-        image_size=image_size,
         base_channels=base_channels,
         channel_mults=(1, 2, 4, 8),
         timesteps=timesteps,
-        lr=lr,
+        lr=lr
     )
 
     checkpoint_callback = ModelCheckpoint(
@@ -70,13 +65,6 @@ def train_ddpm(
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a DDPM model.")
 
-    parser.add_argument(
-        "--data_root",
-        type=str,
-        default="./.data",
-        help="Root directory containing the training data.",
-    )
-    parser.add_argument("--image_size", type=int, default=256, help="Input image size.")
     parser.add_argument(
         "--batch_size", type=int, default=16, help="Training batch size."
     )
@@ -128,12 +116,10 @@ if __name__ == "__main__":
     )
 
     train_ddpm(
-        data_root=args.data_root,
-        image_size=args.image_size,
         batch_size=args.batch_size,
         max_epochs=args.max_epochs,
-        lr=args.lr,
         base_channels=args.base_channels,
+        lr=args.lr,
         timesteps=args.timesteps,
         num_workers=args.num_workers,
         target_channels=args.target_channels,

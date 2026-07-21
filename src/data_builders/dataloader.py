@@ -3,100 +3,47 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
-import torch
 import lightning.pytorch as pl
 
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision import transforms
+from torch.utils.data import DataLoader
+
+from src.data_builders.smhi_dataloader import TrainingDataset, ClimateDataBuilder, parse_config
 
 
-class PairedNpyDataset(Dataset):
-    """
-    Expects:
-
-        root/
-            data/
-                target_00000.npy
-                target_00001.npy
-                condition_00000.npy
-                condition_00001.npy
-    """
-
+class DataModule(pl.LightningDataModule):
     def __init__(
         self,
-        root: str | Path = Path("./.data/"),
-        image_size: int = 256,
-        data_dir: str = "preprocessed",
-    ):
-        self.root = Path(root)
-        self.data_root = self.root / data_dir
-
-        self.target_paths = sorted(self.data_root.glob("target_*.npy"))
-        self.condition_paths = sorted(self.data_root.glob("condition_*.npy"))
-
-        if not self.target_paths:
-            raise RuntimeError(f"No target images found in {self.data_root}")
-
-        if not self.condition_paths:
-            raise RuntimeError(f"No condition images found in {self.data_root}")
-
-        self.transform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Resize((image_size, image_size)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5], std=[0.5]),
-        ])
-
-    def __len__(self):
-        return len(self.target_paths)
-
-    def _load_image(self, path: Path) -> torch.Tensor:
-        img = np.load(path)
-        img = np.moveaxis(img, 0, -1)  # Move channels to last dimension
-        return self.transform(img)
-
-    def __getitem__(self, idx: int):
-        target = self._load_image(self.target_paths[idx])
-        condition = self._load_image(self.condition_paths[idx])
-
-        return {
-            "target": target,
-            "condition": condition,
-        }
-
-
-class PairedNpyDataModule(pl.LightningDataModule):
-    def __init__(
-        self,
-        root: str | Path,
-        image_size: int = 256,
         batch_size: int = 8,
         num_workers: int = 4,
-        val_fraction: float = 0.1,
-        seed: int = 42,
     ):
         super().__init__()
-        self.root = root
-        self.image_size = image_size
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.val_fraction = val_fraction
-        self.seed = seed
 
     def setup(self, stage: Optional[str] = None):
-        dataset = PairedNpyDataset(
-            root=self.root,
-            image_size=self.image_size,
+        
+        config_path = '/work3/s214643/sirius/src/configs/training_config.toml'
+        self.data_builder = ClimateDataBuilder(
+            date_config = parse_config(config_path=config_path, config_keyword="dates"),
+            preprocessing_config = parse_config(config_path=config_path, config_keyword="preprocessing"),
+            predictor_config = parse_config(config_path=config_path, config_keyword="predictors"),
+            static_features_config = parse_config(config_path=config_path, config_keyword="static_features"),
+            target_config = parse_config(config_path=config_path, config_keyword="targets"),
+        )
+        self.data_builder.build_training_set()
+
+        self.train_ds = TrainingDataset(
+            predictors_path="/work3/s214643/sirius/data/ec_earth_zarr/predictors.zarr",
+            targets_path="/work3/s214643/sirius/data/ec_earth_zarr/targets.zarr",
+            static_features_path="/work3/s214643/sirius/data/ec_earth_zarr/static.zarr",
+            indices=self.data_builder.train_idx,
         )
 
-        val_size = int(len(dataset) * self.val_fraction)
-        train_size = len(dataset) - val_size
-
-        self.train_ds, self.val_ds = random_split(
-            dataset,
-            [train_size, val_size],
-            generator=torch.Generator().manual_seed(self.seed),
+        self.val_ds = TrainingDataset(
+            predictors_path="/work3/s214643/sirius/data/ec_earth_zarr/predictors.zarr",
+            targets_path="/work3/s214643/sirius/data/ec_earth_zarr/targets.zarr",
+            static_features_path="/work3/s214643/sirius/data/ec_earth_zarr/static.zarr",
+            indices=self.data_builder.val_idx,
         )
 
     def train_dataloader(self):

@@ -67,7 +67,6 @@ class ClimateDataBuilder:
         for source_name, source_config in self.target_config["source"].items():
             for scenario_name, scenario_config in source_config["scenario"].items():
                 for member_name, member_config in scenario_config["member"].items():
-                    print(f"Loading target data for {source_name} | {scenario_name} | {member_name}")
                     basepath = member_config["basepath"]
                     files = member_config["files"]
                     mode = member_config["mode"]
@@ -77,11 +76,9 @@ class ClimateDataBuilder:
                         mode,
                         timesteps_per_chunk,
                     )
-                    print("merge completed")
                     realization_id = f"{source_name}|{scenario_name}|{member_name}"
                     ds = ds.expand_dims(realization=[realization_id])
                     ds = self._normalize_time(ds)
-                    print("normalized")
                     datasets.append(ds)
                     
         return datasets
@@ -381,7 +378,8 @@ class TrainingDataset(Dataset):
             var: y[i]
             for i, var in enumerate(self.target_variables)
         }
-        return x, y, idx
+
+        return x, y, self.static_features, idx
 
 def load_variable(varname, path, mode, timesteps_per_chunk=None, vertical_dim_name="plev"):
     if mode == 'mfdataset':
@@ -389,7 +387,6 @@ def load_variable(varname, path, mode, timesteps_per_chunk=None, vertical_dim_na
         path = Path(path).expanduser().resolve()
         assert path.exists(), f"Path does not exist: {path}"
         files = sorted(path.rglob("*.nc"))  # Ensure the path is valid for globbing
-        print(f"Loading files from {files}")
         ds = xr.open_mfdataset(
             files,
             combine="by_coords",

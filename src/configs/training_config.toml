@@ -1,0 +1,108 @@
+[training]
+batch_size = 4
+epochs = 10
+optimizer = "AdamW"
+learning_rate = 1E-4
+weight_decay = 1E-4
+
+[losses]
+
+[losses.tasmin]
+type = "Combined_MSE_FFT_loss"
+
+[losses.tas_diff_min]
+type = "Combined_MSE_FFT_loss"
+
+[losses.tas_diff_max]
+type = "Combined_MSE_FFT_loss"
+
+[losses.pr_mask]
+type = "PrecipMaskLoss"
+
+[losses.pr_log_mm_day]
+type = "MSELossMasked"
+
+[loss_weights]
+tasmin = 1.0
+tas_diff_min = 1.0
+tas_diff_max = 1.0
+pr_mask = 1.0
+pr_log_mm_day = 1.0
+
+[network]
+model_name = "UNet"
+num_channels = 32
+interpolation_mode = "bilinear"
+
+# UNet specific
+UNet_depth = 5
+use_cbam = true
+
+[dates]
+train_blocks = [
+  ["1951-01-01", "1960-12-31"],
+  ["1963-01-01", "1972-12-31"],
+  ["1975-01-01", "1984-12-31"],
+  ["1987-01-01", "1996-12-31"],
+  ["1999-01-01", "2008-12-31"],
+]
+
+val_blocks = [
+  ["1961-01-01", "1962-12-31"],
+  ["1973-01-01", "1974-12-31"],
+  ["1985-01-01", "1986-12-31"],
+  ["1997-01-01", "1998-12-31"],
+  ["2009-01-01", "2014-12-31"],
+]
+daily_frequency = true
+
+[preprocessing]
+timesteps_per_chunk = 8
+temperature_constraints = false
+precipitation_scaling = 86400
+precipitation_transform = false
+wet_day_threshold = 0.5
+normalization = 'global'
+normalization_stats_path = '/work3/s214643/sirius/data/ec_earth_zarr/normalization_stats.nc'
+predictors_output = '/work3/s214643/sirius/data/ec_earth_zarr/predictors.zarr'
+targets_output = '/work3/s214643/sirius/data/ec_earth_zarr/targets.zarr'
+static_output = '/work3/s214643/sirius/data/ec_earth_zarr/static.zarr'
+
+[predictors]
+vertical_dim_name = "plev"
+
+[predictors.source.EC-Earth3-Veg.scenario.historical.member.r1i1p1f1]
+basepath = "/work3/s214643/sirius/data/ec_earth/predictors/r1i1p1f1"
+mode = 'single'
+
+[predictors.source.EC-Earth3-Veg.scenario.historical.member.r1i1p1f1.files]
+tas = "tas_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+tasmin = "tasmin_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+tasmax = "tasmax_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+pr = "pr_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+ta = "ta_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+va = "va_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+ua = "ua_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+hus = "hus_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+zg = "zg_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+clt = "clt_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+psl = "psl_EUR-12_day_EC-Earth3-Veg_historical_r1i1p1f1_r360x180_1951-2014.nc"
+
+[static_features]
+basepath = "/work3/s214643/sirius/data/ec_earth/static_features"
+mode = 'single'
+
+[static_features.files]
+orog = "orog_EUR-12_EC-Earth3-Veg_historical_r1i1p1f1_HCLIMcom-SMHI_HCLIM43-ALADIN_v1-r1_fx.nc"
+sftlf = "sftlf_EUR-12_EC-Earth3-Veg_historical_r1i1p1f1_HCLIMcom-SMHI_HCLIM43-ALADIN_v1-r1_fx.nc"
+
+[targets]
+[targets.source.EC-Earth3-Veg.scenario.historical.member.r1i1p1f1]
+basepath = "/work3/s214643/sirius/data/ec_earth/targets/r1i1p1f1/day"
+mode = 'mfdataset'
+
+[targets.source.EC-Earth3-Veg.scenario.historical.member.r1i1p1f1.files]
+tas = "tas/*.nc"
+
+[output]
+model_path = '/work3/s214643/sirius/checkpoints/'

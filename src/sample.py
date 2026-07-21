@@ -5,8 +5,10 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from src.model import LitConditionalDDPM
+from src.data_builders.dataloader import DataModule
 
 
 # ----------------------------------------------------
@@ -39,12 +41,45 @@ def main(
     # Load conditioning image
     # ----------------------------------------------------
 
-    condition = np.load(Path(DATA_DIR) / f"condition_{sample_index:05d}.npy").astype(
-        np.float32
+    datamodule = DataModule(
+        batch_size=1,
+        num_workers=1,
+    )
+    datamodule.setup()
+    stats = datamodule.data_builder.stats
+
+    x, y, static, idx = next(iter(datamodule.val_dataloader()))
+
+    org_condition_shape = x.shape[-2:]
+    
+    condition = F.interpolate(
+        x,
+        size=(model.image_size, model.image_size),
+        mode="bilinear",
+        align_corners=False,
     )
 
-    target = np.load(Path(DATA_DIR) / f"target_{sample_index:05d}.npy").astype(
-        np.float32
+    static = F.interpolate(
+        static,
+        size=(model.image_size, model.image_size),
+        mode="bilinear",
+        align_corners=False,
+    )
+
+    condition = torch.cat([condition, static], dim=1)
+
+    target = torch.stack(
+        list(y.values()),
+        dim=1,
+    )
+
+    org_target_shape = target.shape[-2:]
+
+    target = F.interpolate(
+        target,
+        size=(model.image_size, model.image_size),
+        mode="bilinear",
+        align_corners=False,
     )
 
     # ----------------------------------------------------
@@ -52,12 +87,17 @@ def main(
     # Use EXACTLY the same normalization as training
     # ----------------------------------------------------
 
+    # mean = torch.stack([torch.tensor(stat.mean().values) for stat in stats.values()])
+    # std = torch.stack([torch.tensor(stat.std().values) for stat in stats.values()]) + 1e-6
+
+    # mean = F.pad(mean, (0, condition.shape[1] - mean.shape[0]), value=0.0).reshape(1, -1, 1, 1)
+    # std = F.pad(std, (0, condition.shape[1] - std.shape[0]), value=1.0).reshape(1, -1, 1, 1)
+
     mean = condition.mean()
     std = condition.std() + 1e-6
 
     condition_norm = (condition - mean) / std
-
-    condition_tensor = torch.from_numpy(condition_norm).unsqueeze(0).to(device)
+    condition_tensor = condition_norm.to(device)
 
     # ----------------------------------------------------
     # Sample
@@ -69,10 +109,25 @@ def main(
             num_steps=250,  # DDIM-like speedup
         )
 
-    prediction = prediction.squeeze().cpu().numpy()
+    prediction = prediction.cpu()
 
     # Undo normalization
     prediction = prediction * std + mean
+
+    # Scale down to original size
+    condition = F.interpolate(
+        condition,
+        size=org_condition_shape,
+        mode="bilinear",
+        align_corners=False,
+    )
+
+    prediction = F.interpolate(
+        prediction,
+        size=org_target_shape,
+        mode="bilinear",
+        align_corners=False,
+    )
 
     # ----------------------------------------------------
     # Save arrays
@@ -84,22 +139,38 @@ def main(
     # Plot comparison
     # ----------------------------------------------------
 
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+    
+    fig = plt.figure(figsize=(15, 5), layout="constrained")
+    grid = fig.add_gridspec(1, 4, width_ratios=[1, 1, 1, 0.05])
 
-    ax[0].imshow(condition[sample_dim], cmap="coolwarm")
-    ax[0].set_title("Condition")
+    ax = [fig.add_subplot(grid[0, i]) for i in range(3)]
+    cax = fig.add_subplot(grid[0, 3])
 
-    ax[1].imshow(prediction[sample_dim], cmap="coolwarm")
-    ax[1].set_title("Generated")
+    condition_img = condition[0, sample_dim]
+    prediction_img = prediction[0, sample_dim]
+    target_img = target[0, sample_dim]
 
-    ax[2].imshow(target[sample_dim], cmap="coolwarm")
-    ax[2].set_title("Ground Truth")
+    vmin = min(img.min().item() for img in [condition_img, prediction_img, target_img])
+    vmax = max(img.max().item() for img in [condition_img, prediction_img, target_img])
 
-    for a in ax:
-        a.axis("off")
+    for axis, title, image in zip(
+        ax,
+        ["Condition", "Generated", "Ground Truth"],
+        [condition_img, prediction_img, target_img],
+    ):
+        mappable = axis.imshow(
+            image.detach().cpu(),
+            cmap="coolwarm",
+            vmin=vmin,
+            vmax=vmax,
+            origin="lower",
+        )
+        axis.set_title(title)
+        axis.axis("off")
+
+    fig.colorbar(mappable, cax=cax, label="Temperature")
 
     plt.savefig(out_dir / "comparison.png", dpi=300)
-    plt.show()
 
 
 def parse_args():

@@ -179,14 +179,14 @@ class LitConditionalDDPM(pl.LightningModule):
         self,
         target_channels: int = 1,
         condition_channels: int = 1,
-        image_size: int = 256,
         base_channels: int = 128,
         channel_mults: Sequence[int] = (1, 2, 4, 8, 10),
         timesteps: int = 1000,
         beta_start: float = 1e-4,
         beta_end: float = 2e-2,
-        lr: float = 2e-4,
         dropout: float = 0.0,
+        lr: float = 2e-4,
+        image_size: int = 512
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -203,6 +203,8 @@ class LitConditionalDDPM(pl.LightningModule):
         alphas = 1.0 - betas
         alpha_bars = torch.cumprod(alphas, dim=0)
 
+        self.image_size = image_size
+
         self.register_buffer("betas", betas)
         self.register_buffer("alphas", alphas)
         self.register_buffer("alpha_bars", alpha_bars)
@@ -213,10 +215,42 @@ class LitConditionalDDPM(pl.LightningModule):
         sqrt_ab = self.sqrt_alpha_bars[t][:, None, None, None]
         sqrt_omab = self.sqrt_one_minus_alpha_bars[t][:, None, None, None]
         return sqrt_ab * x0 + sqrt_omab * noise
+    
+    def _load_batch(self, batch):
+        x, y, static, _ = batch
+
+        x0 = torch.stack(
+            list(y.values()),
+            dim=1,
+        )
+
+        x0 = F.interpolate(
+            x0,
+            size=(self.image_size, self.image_size),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        condition = F.interpolate(
+            x,
+            size=(self.image_size, self.image_size),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        static = F.interpolate(
+            static,
+            size=(self.image_size, self.image_size),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        condition = torch.cat([condition, static], dim=1)
+
+        return x0, condition
 
     def training_step(self, batch, batch_idx, noise_channel: int = 0):
-        x0 = batch["target"]
-        condition = batch["condition"]
+        x0, condition = self._load_batch(batch)
 
         b = x0.shape[0]
         t = torch.randint(0, self.hparams.timesteps, (b,), device=x0.device)
@@ -225,17 +259,13 @@ class LitConditionalDDPM(pl.LightningModule):
         x_t = self.q_sample(x0, t, noise)
         noise_pred = self.model(x_t, condition, t)
 
-        # Calculate loss only for the specified channel (Temperature)
-        noise_temp = noise[..., noise_channel:noise_channel + 1, :, :]
-        noise_pred_temp = noise_pred[..., noise_channel:noise_channel + 1, :, :]
-        loss = F.mse_loss(noise_pred_temp, noise_temp)
+        loss = F.mse_loss(noise_pred, noise)
 
         self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=True)
         return loss
 
-    def validation_step(self, batch, batch_idx, noise_channel: int = 0):
-        x0 = batch["target"]
-        condition = batch["condition"]
+    def validation_step(self, batch, batch_idx):
+        x0, condition = self._load_batch(batch)
 
         b = x0.shape[0]
         t = torch.randint(0, self.hparams.timesteps, (b,), device=x0.device)
@@ -244,10 +274,7 @@ class LitConditionalDDPM(pl.LightningModule):
         x_t = self.q_sample(x0, t, noise)
         noise_pred = self.model(x_t, condition, t)
 
-        # Calculate loss only for the specified channel (Temperature)
-        noise_temp = noise[..., noise_channel:noise_channel + 1, :, :]
-        noise_pred_temp = noise_pred[..., noise_channel:noise_channel + 1, :, :]
-        loss = F.mse_loss(noise_pred_temp, noise_temp)
+        loss = F.mse_loss(noise_pred, noise)
 
         self.log("val_loss", loss, prog_bar=True, on_epoch=True)
         return loss

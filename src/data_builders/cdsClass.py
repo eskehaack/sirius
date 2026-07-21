@@ -33,7 +33,10 @@ class cdsDataset:
         self.variables = variables
         self.slices = slices
 
-        self.data_dir = Path(root_dir) / target
+        root = Path(root_dir)
+        root.mkdir(parents=True, exist_ok=True)
+
+        self.data_dir = root / target
 
     def _fetch_data(
         self,
@@ -57,6 +60,42 @@ class cdsDataset:
             "data_format": "grib",
             "area": area,
         }
+
+        request = {
+            "level_type": "single_levels",
+            "variable": [
+                "2m_temperature",
+                "land_sea_mask",
+                "orography"
+            ],
+            "product_type": "analysis",
+            "time": [
+                "03:00", "09:00", "15:00",
+                "21:00"
+            ],
+            "year": ["2001"],
+            "month": [
+                "01", "02", "03",
+                "04", "05", "06",
+                "07", "08", "09",
+                "10", "11", "12"
+            ],
+            "day": [
+                "01", "02", "03",
+                "04", "05", "06",
+                "07", "08", "09",
+                "10", "11", "12",
+                "13", "14", "15",
+                "16", "17", "18",
+                "19", "20", "21",
+                "22", "23", "24",
+                "25", "26", "27",
+                "28", "29", "30",
+                "31"
+            ],
+            "data_format": "grib"
+        }
+
 
         ds = ekd.from_source("cds", self.dataset, request)
         ds.to_target("file", self.data_dir)
@@ -258,8 +297,9 @@ class cdsDataset:
 
 if __name__ == "__main__":
     dataset = cdsDataset(
-        target="test.grib",
+        target="2001_all_temp_lsm_orog.grib",
     )
+    dataset._fetch_data()
     dataset.preprocess_to_coarse(
         variables=["2t", "lsm", "orog"],
         corner=(300, 1100),
