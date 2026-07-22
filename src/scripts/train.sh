@@ -1,7 +1,7 @@
 #!/bin/bash
 #BSUB -q gpuv100
 #BSUB -J pilot_icyalert_4
-#BSUB -n 4
+#BSUB -n 8
 #BSUB -R "rusage[mem=5GB]"
 #BSUB -R "span[hosts=1]"
 #BSUB -gpu "num=1:mode=exclusive_process"
@@ -19,16 +19,8 @@ source /work3/s214643/sirius/.venv/bin/activate
 ts="$(date +%Y%m%d%H%M%S)"
 
 python -m src.train \
-    --batch_size 4 \
-    --max_epochs 2 \
-    --lr 1e-4 \
-    --base_channels 64 \
-    --num_workers 4 \
-    --target_channels 1 \
-    --condition_channels 23 \
-    --checkpoint_dir "./checkpoints/$ts" \
-    --timesteps 100
+    --config_path src/configs/training_config.yaml \
+    --run_id ${LSB_JOBID} \
 
 python -m src.sample \
-    --timestamp "$ts" \
-    --sample_index 0
+    --run_id ${LSB_JOBID}

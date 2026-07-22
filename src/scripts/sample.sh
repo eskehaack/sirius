@@ -1,7 +1,7 @@
 #!/bin/bash
 #BSUB -q gpuv100
 #BSUB -J sample_icyalert
-#BSUB -n 1
+#BSUB -n 4
 #BSUB -R "rusage[mem=5GB]"
 #BSUB -R "span[hosts=1]"
 #BSUB -gpu "num=1:mode=exclusive_process"
@@ -18,7 +18,6 @@ cd /work3/s214643/sirius
 source /work3/s214643/sirius/.venv/bin/activate
 
 python -m src.sample \
-    --timestamp "20260721144907" \
+    --run_id "20260721200657" \
     --checkpoint "last" \
-    --sample_index 0 \
     --sample_dim 0

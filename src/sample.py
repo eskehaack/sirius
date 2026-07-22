@@ -19,7 +19,7 @@ DATA_DIR = "./.data/preprocessed"
 
 
 def main(
-    timestamp: str, checkpoint: str = "last", sample_index: int = 0, sample_dim: int = 0
+    run_id: str, checkpoint: str = "last", sample_dim: int = 0
 ):
     # ----------------------------------------------------
     # Load model
@@ -27,14 +27,16 @@ def main(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    checkpoint_path = Path(f"./checkpoints/{timestamp}/{checkpoint}.ckpt")
+    checkpoint_path = Path(f"./checkpoints/{run_id}/{checkpoint}.ckpt")
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_path}\nModel training did not complete as expected.")
+    
     model = LitConditionalDDPM.load_from_checkpoint(checkpoint_path)
     model.eval()
     model.to(device)
 
-    out_dir = Path(f"./samples/{timestamp}")
-    if out_dir.exists():
-        out_dir = out_dir / time.strftime("%Y%m%d%H%M%S")
+    out_dir = Path(f"./samples/{run_id}")
+    out_dir = out_dir / time.strftime("%Y%m%d%H%M%S")
     out_dir.mkdir(exist_ok=False, parents=True)
 
     # ----------------------------------------------------
@@ -177,15 +179,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Sample from a DDPM model.")
 
     parser.add_argument(
-        "--timestamp", type=str, help="Timestamp defining directory for checkpoint file"
+        "--run_id", type=str, help="Run ID defining directory for checkpoint file"
     )
 
     parser.add_argument(
         "--checkpoint", type=str, default="last", help="Name of checkpoint file"
-    )
-
-    parser.add_argument(
-        "--sample_index", type=int, default=0, help="Index in dataset to sample from"
     )
 
     parser.add_argument(
@@ -200,4 +198,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args.timestamp, args.checkpoint, args.sample_index, args.sample_dim)
+    main(args.run_id, args.checkpoint, args.sample_dim)
